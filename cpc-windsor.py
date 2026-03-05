@@ -132,15 +132,11 @@ try:
             raw_route = get_col_val(driver, ['Route', 'Route #', 'Current Route'], 1) 
             p_id = clean_id_alphanumeric(get_col_val(driver, ['PeopleNet ID', 'PeopleNet', 'ELD'], 12))
             
-            # PERFECT MATCHING + COLUMN FALLBACKS
             raw_dl = get_col_val(driver, ['DL Expiration Date'])
             raw_dot = get_col_val(driver, ['DOT Physical Expires', 'DOT physical expires', 'DOT Expiration Date'], 17) # Column R
             raw_hire = get_col_val(driver, ['Hire Date'])
+            raw_smart_drive = get_col_val(driver, ['SMART Drive score', 'SMART Drive', 'SmartDrive', 'Score'], 20) # Column U
             
-            # --- FIX APPLIED HERE: Added Fallback Index 20 (Column U) ---
-            raw_smart_drive = get_col_val(driver, ['SMART Drive score', 'SMART Drive', 'SmartDrive', 'Score'], 20) 
-            
-            # PROCESSING THE DATE MATH
             dl_date, dl_badge = format_date_metric(raw_dl, "down")
             dot_date, dot_badge = format_date_metric(raw_dot, "down")
             hire_date, hire_badge = format_date_metric(raw_hire, "up")
@@ -154,11 +150,27 @@ try:
             st.markdown("### Daily Portal")
             tab_today, tab_tom = st.tabs([f"📅 Today ({today_str})", f"⏭️ Tomorrow ({tom_str})"])
 
-            def get_safety_msg(target_date):
+            # --- APPLIED FIX: Intelligent Date Parsing for Safety Messages ---
+            def get_safety_msg(target_date_str):
                 msg = "Perform a thorough pre-trip inspection."
                 if not safety.empty:
-                    s_match = safety[safety.iloc[:, 0].astype(str).str.contains(target_date, na=False)]
-                    if not s_match.empty: msg = s_match.iloc[0, 1]
+                    try:
+                        # Convert the target date (e.g., '03/05/2026') to a real date object
+                        target_dt = pd.to_datetime(target_date_str).date()
+                        
+                        # Convert the Google Sheet's first column into real date objects
+                        safety_dates = pd.to_datetime(safety.iloc[:, 0], errors='coerce').dt.date
+                        
+                        # Find the row where the dates match perfectly
+                        s_match = safety[safety_dates == target_dt]
+                        
+                        if not s_match.empty:
+                            # Pull the message from the second column (Index 1)
+                            val = str(s_match.iloc[0, 1]).strip()
+                            if val and val.lower() != 'nan':
+                                msg = val
+                    except Exception as e:
+                        pass # If there's an error, just show the default message
                 return msg
 
             with tab_today:
