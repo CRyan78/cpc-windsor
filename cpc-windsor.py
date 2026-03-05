@@ -32,33 +32,41 @@ st.markdown("""
 
 # --- 3. HELPERS ---
 def clean_num(val):
-    if pd.isna(val) or str(val).strip() in ('0', '', 'nan'): return ""
+    if pd.isna(val) or str(val).strip() in ('0', '', 'nan', 'None'): return ""
     return re.sub(r'\D', '', str(val).split('.')[0])
 
 def clean_id_alphanumeric(val):
-    if pd.isna(val) or str(val).strip() in ('0', '', 'nan'): return ""
+    if pd.isna(val) or str(val).strip() in ('0', '', 'nan', 'None'): return ""
     return str(val).strip()
 
 def make_tel_link(phone_str):
     digits = re.sub(r'\D', '', str(phone_str))
     return f"tel:{digits}"
 
+# Hardened Data Fetcher
+def get_col_val(row, possible_names, fallback_index):
+    # Try to find a matching column name first
+    for col in possible_names:
+        if col in row.index and not pd.isna(row[col]):
+            return str(row[col]).strip()
+    # If name fails, grab it by its position (Column A = 0, Column B = 1, etc.)
+    if len(row) > fallback_index and not pd.isna(row.iloc[fallback_index]):
+        return str(row.iloc[fallback_index]).strip()
+    return ""
+
 def safe_get(row, col_name, index, default=""):
-    if col_name in row: return str(row[col_name]).strip()
-    if len(row) > index: return str(row.iloc[index]).strip()
+    if col_name in row and not pd.isna(row[col_name]): return str(row[col_name]).strip()
+    if len(row) > index and not pd.isna(row.iloc[index]): return str(row.iloc[index]).strip()
     return default
 
 @st.cache_data(ttl=0)
 def load_all_data():
-    # Base Export URL for your specific sheet
     base_url = "https://docs.google.com/spreadsheets/d/1o77YRNaemFMZP-5e34_VVmdlGHtO2lGhT2kN_bh6W8I/export?format=csv"
-    
     gids = {
         "roster": "956807855", "schedule": "2135671483", "email": "316342570",
         "quick": "644504571", "dispatch": "1528012287",
         "working_sched": "1659857002", "working_disp": "1195417546", "safety": "464410004"
     }
-
     def get_s(gid):
         try:
             df = pd.read_csv(f"{base_url}&gid={gid}&cb={int(time.time())}", low_memory=False)
@@ -84,11 +92,8 @@ try:
         st.markdown(f'<a href="{responses_url}" target="_blank" class="btn-confirm" style="background-color: #004a99 !important;">📊 VIEW LIVE ROUTE CONFIRMATIONS</a>', unsafe_allow_html=True)
 
     elif user_input:
-        # ID is in Column O (named '#')
-        if '#' in roster.columns:
-            id_col = '#'
-        elif len(roster.columns) >= 15: # Index 14 is Column O
-            id_col = roster.columns[14]
+        if '#' in roster.columns: id_col = '#'
+        elif len(roster.columns) >= 15: id_col = roster.columns[14]
         else:
             st.error("Could not locate column '#' or Column O in Roster tab.")
             st.stop()
@@ -98,8 +103,12 @@ try:
 
         if not match.empty:
             driver = match.iloc[0]
-            d_name = safe_get(driver, 'Driver Name', 0)
-            raw_route = str(driver.get('Route', ''))
+            
+            # HARDENED DATA PULLS
+            d_name = get_col_val(driver, ['Driver Name', 'Driver', 'Name', 'Employee Name'], 0)
+            raw_route = get_col_val(driver, ['Route', 'Route #', 'Current Route'], 1) 
+            p_id = clean_id_alphanumeric(get_col_val(driver, ['PeopleNet ID', 'PeopleNet', 'ELD'], 12))
+            
             route_num = clean_num(raw_route)
             today_str = datetime.now().strftime("%m/%d/%Y")
             tom_str = (datetime.now() + timedelta(days=1)).strftime("%m/%d/%Y")
@@ -124,10 +133,9 @@ try:
                 btn_text = "✅ ROUTE CONFIRMED" if is_confirmed else "🚛 READ SAFETY & CONFIRM ROUTE"
                 st.markdown(f'<a href="{full_url}" target="_blank" class="{btn_class}">{btn_text}</a>', unsafe_allow_html=True)
 
-                st.markdown(f"<div class='header-box'><h3>{d_name}</h3>ID: <b>{user_input}</b> | Route: <b>{raw_route}</b></div>", unsafe_allow_html=True)
-                p_id = clean_id_alphanumeric(safe_get(driver, 'PeopleNet ID', 12))
+                st.markdown(f"<div class='header-box'><h3>{d_name if d_name else 'Driver'}</h3>ID: <b>{user_input}</b> | Route: <b>{raw_route if raw_route else 'Unassigned'}</b></div>", unsafe_allow_html=True)
                 st.markdown(f"""<div class='eld-card'><div style='font-size:14px; opacity:0.8;'>ELD LOGIN</div>
-                            <span class='eld-val'>3299 | {p_id} | {p_id}</span></div>""", unsafe_allow_html=True)
+                            <span class='eld-val'>3299 | {p_id if p_id else 'N/A'} | {p_id if p_id else 'N/A'}</span></div>""", unsafe_allow_html=True)
 
                 dispatch['route_match'] = dispatch.iloc[:, 0].apply(clean_num)
                 today_notes = dispatch[dispatch['route_match'] == route_num]
@@ -178,11 +186,20 @@ try:
                         st.markdown(f"<a href='{s_map_t}' class='btn-blue'>🗺️ Store Map</a>", unsafe_allow_html=True)
                         st.markdown(f"<a href='{iss_url_t}' class='btn-red'>🚨 Report Issue</a>", unsafe_allow_html=True)
 
-                st.divider()
-                if not quick_links.empty:
-                    for _, link in quick_links.iterrows():
-                        n, v = str(link.get('Name')), str(link.get('Phone Number or URL'))
-                        if "http" in v.lower(): st.markdown(f"<a href='{v}' class='btn-blue'>{n}</a>", unsafe_allow_html=True)
-                        else: st.markdown(f"<a href='{make_tel_link(v)}' class='btn-green'>📞 Call {n}</a>", unsafe_allow_html=True)
+            # HARDENED QUICK LINKS (Pulls from Column 1 and Column 2 directly)
+            st.divider()
+            if not quick_links.empty:
+                for _, link in quick_links.iterrows():
+                    # Only process if there are at least two columns of data in this row
+                    if len(link) >= 2:
+                        n = str(link.iloc[0]).strip()
+                        v = str(link.iloc[1]).strip()
+                        
+                        # Only create a button if there's actual text (not "nan" or blank)
+                        if n and n != 'nan' and v and v != 'nan':
+                            if "http" in v.lower(): 
+                                st.markdown(f"<a href='{v}' class='btn-blue'>{n}</a>", unsafe_allow_html=True)
+                            else: 
+                                st.markdown(f"<a href='{make_tel_link(v)}' class='btn-green'>📞 Call {n}</a>", unsafe_allow_html=True)
         else: st.error("ID not found.")
 except Exception as e: st.error(f"Critical Error: {e}")
