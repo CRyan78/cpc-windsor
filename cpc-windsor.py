@@ -51,8 +51,7 @@ def safe_get(row, col_name, index, default=""):
 
 @st.cache_data(ttl=0)
 def load_all_data():
-    base_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS7yF5pvuOjzm0xdRwHrFj8ByzGZ3kh1Iqmyw8pSdegEUUVeb3qSLpd1PDuWD1cUg/pub?output=csv"
-    gids = {
+    base_url = "https://docs.google.com/spreadsheets/d/1o77YRNaemFMZP-5e34_VVmdlGHtO2lGhT2kN_bh6W8I/edit?gid=956807855#gid = {
         "roster": "1261782560", "dispatch": "1123038440", "schedule": "1908585361", 
         "links": "489255872", "safety": "1978744657",
         "next_schedule": "1032676579", "next_dispatch": "313559236"
