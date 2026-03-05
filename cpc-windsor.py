@@ -43,16 +43,13 @@ def make_tel_link(phone_str):
     digits = re.sub(r'\D', '', str(phone_str))
     return f"tel:{digits}"
 
-# Hardened Data Fetcher
-def get_col_val(row, possible_names, fallback_index):
-    # Try to find a matching column name first
+def get_col_val(row, possible_names, fallback_index=None):
     for col in possible_names:
         if col in row.index and not pd.isna(row[col]):
             return str(row[col]).strip()
-    # If name fails, grab it by its position (Column A = 0, Column B = 1, etc.)
-    if len(row) > fallback_index and not pd.isna(row.iloc[fallback_index]):
+    if fallback_index is not None and len(row) > fallback_index and not pd.isna(row.iloc[fallback_index]):
         return str(row.iloc[fallback_index]).strip()
-    return ""
+    return "N/A"
 
 def safe_get(row, col_name, index, default=""):
     if col_name in row and not pd.isna(row[col_name]): return str(row[col_name]).strip()
@@ -104,11 +101,23 @@ try:
         if not match.empty:
             driver = match.iloc[0]
             
-            # HARDENED DATA PULLS
+            # 1. HARDENED DRIVER INFO
             d_name = get_col_val(driver, ['Driver Name', 'Driver', 'Name', 'Employee Name'], 0)
             raw_route = get_col_val(driver, ['Route', 'Route #', 'Current Route'], 1) 
             p_id = clean_id_alphanumeric(get_col_val(driver, ['PeopleNet ID', 'PeopleNet', 'ELD'], 12))
             
+            # 2. NEW: COMPLIANCE & PERFORMANCE METRICS
+            cdl_exp = get_col_val(driver, ['CDL Expiration', 'CDL Exp', 'CDL Date', 'License Exp'])
+            dot_exp = get_col_val(driver, ['DOT Expiration', 'DOT Exp', 'DOT Date', 'DOT'])
+            tenure = get_col_val(driver, ['Tenure', 'Hire Date', 'Years', 'Seniority'])
+            smart_drive = get_col_val(driver, ['SMART Drive score', 'SMART Drive', 'SmartDrive', 'Score'])
+            
+            # Clean up missing metrics
+            cdl_exp = cdl_exp if cdl_exp.lower() != 'nan' else 'N/A'
+            dot_exp = dot_exp if dot_exp.lower() != 'nan' else 'N/A'
+            tenure = tenure if tenure.lower() != 'nan' else 'N/A'
+            smart_drive = smart_drive if smart_drive.lower() != 'nan' else 'N/A'
+
             route_num = clean_num(raw_route)
             today_str = datetime.now().strftime("%m/%d/%Y")
             tom_str = (datetime.now() + timedelta(days=1)).strftime("%m/%d/%Y")
@@ -133,9 +142,25 @@ try:
                 btn_text = "✅ ROUTE CONFIRMED" if is_confirmed else "🚛 READ SAFETY & CONFIRM ROUTE"
                 st.markdown(f'<a href="{full_url}" target="_blank" class="{btn_class}">{btn_text}</a>', unsafe_allow_html=True)
 
-                st.markdown(f"<div class='header-box'><h3>{d_name if d_name else 'Driver'}</h3>ID: <b>{user_input}</b> | Route: <b>{raw_route if raw_route else 'Unassigned'}</b></div>", unsafe_allow_html=True)
+                # NEW DASHBOARD HEADER WITH METRICS
+                st.markdown(f"""
+                <div class='header-box'>
+                    <h3>{d_name if d_name != 'N/A' else 'Driver'}</h3>
+                    <p style="margin-top:-10px; margin-bottom:15px; opacity: 0.9;">
+                        ID: <b>{user_input}</b> &nbsp;|&nbsp; Route: <b>{raw_route if raw_route != 'N/A' else 'Unassigned'}</b>
+                    </p>
+                    <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.3); margin-bottom: 15px;">
+                    <div style="display:flex; justify-content:space-between; text-align:center; font-size:15px; line-height:1.4;">
+                        <div style="flex:1;"><b>CDL Exp</b><br>{cdl_exp}</div>
+                        <div style="flex:1; border-left: 1px solid rgba(255,255,255,0.3);"><b>DOT Exp</b><br>{dot_exp}</div>
+                        <div style="flex:1; border-left: 1px solid rgba(255,255,255,0.3);"><b>Tenure</b><br>{tenure}</div>
+                        <div style="flex:1; border-left: 1px solid rgba(255,255,255,0.3);"><b>SmartDrive</b><br>{smart_drive}</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
                 st.markdown(f"""<div class='eld-card'><div style='font-size:14px; opacity:0.8;'>ELD LOGIN</div>
-                            <span class='eld-val'>3299 | {p_id if p_id else 'N/A'} | {p_id if p_id else 'N/A'}</span></div>""", unsafe_allow_html=True)
+                            <span class='eld-val'>3299 | {p_id if p_id != 'N/A' else 'None'} | {p_id if p_id != 'N/A' else 'None'}</span></div>""", unsafe_allow_html=True)
 
                 dispatch['route_match'] = dispatch.iloc[:, 0].apply(clean_num)
                 today_notes = dispatch[dispatch['route_match'] == route_num]
@@ -186,20 +211,14 @@ try:
                         st.markdown(f"<a href='{s_map_t}' class='btn-blue'>🗺️ Store Map</a>", unsafe_allow_html=True)
                         st.markdown(f"<a href='{iss_url_t}' class='btn-red'>🚨 Report Issue</a>", unsafe_allow_html=True)
 
-            # HARDENED QUICK LINKS (Pulls from Column 1 and Column 2 directly)
             st.divider()
             if not quick_links.empty:
                 for _, link in quick_links.iterrows():
-                    # Only process if there are at least two columns of data in this row
                     if len(link) >= 2:
                         n = str(link.iloc[0]).strip()
                         v = str(link.iloc[1]).strip()
-                        
-                        # Only create a button if there's actual text (not "nan" or blank)
                         if n and n != 'nan' and v and v != 'nan':
-                            if "http" in v.lower(): 
-                                st.markdown(f"<a href='{v}' class='btn-blue'>{n}</a>", unsafe_allow_html=True)
-                            else: 
-                                st.markdown(f"<a href='{make_tel_link(v)}' class='btn-green'>📞 Call {n}</a>", unsafe_allow_html=True)
+                            if "http" in v.lower(): st.markdown(f"<a href='{v}' class='btn-blue'>{n}</a>", unsafe_allow_html=True)
+                            else: st.markdown(f"<a href='{make_tel_link(v)}' class='btn-green'>📞 Call {n}</a>", unsafe_allow_html=True)
         else: st.error("ID not found.")
 except Exception as e: st.error(f"Critical Error: {e}")
