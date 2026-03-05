@@ -57,12 +57,11 @@ def safe_get(row, col_name, index, default=""):
     if len(row) > index and not pd.isna(row.iloc[index]): return str(row.iloc[index]).strip()
     return default
 
-# NEW: Date Math Logic
+# Date Math Logic
 def format_date_metric(date_str, mode="down"):
     if date_str == "N/A" or not date_str or str(date_str).lower() in ['nan', 'none']:
         return "N/A", ""
     try:
-        # Parse the date from the Google Sheet string
         d = pd.to_datetime(date_str)
         now = pd.Timestamp.now()
         date_display = d.strftime('%m/%d/%y')
@@ -82,7 +81,6 @@ def format_date_metric(date_str, mode="down"):
             mos = f"{rd.months}m"
             return date_display, f"<span style='color:#b3ffcc;'>{yrs}{mos}</span>"
     except Exception:
-        # If it fails to parse (e.g. someone typed "TBD"), just return the raw text safely
         return str(date_str), ""
 
 @st.cache_data(ttl=0)
@@ -134,9 +132,9 @@ try:
             raw_route = get_col_val(driver, ['Route', 'Route #', 'Current Route'], 1) 
             p_id = clean_id_alphanumeric(get_col_val(driver, ['PeopleNet ID', 'PeopleNet', 'ELD'], 12))
             
-            # PULLING YOUR SPECIFIC COLUMNS
+            # EXACT COLUMN MATCHING
             raw_dl = get_col_val(driver, ['DL Expiration Date'])
-            raw_dot = get_col_val(driver, ['DOT physical expires'])
+            raw_dot = get_col_val(driver, ['DOT Expiration Date', 'DOT physical expires'])
             raw_hire = get_col_val(driver, ['Hire Date'])
             raw_smart_drive = get_col_val(driver, ['SMART Drive score', 'SMART Drive', 'SmartDrive', 'Score'])
             
@@ -172,7 +170,6 @@ try:
                 btn_text = "✅ ROUTE CONFIRMED" if is_confirmed else "🚛 READ SAFETY & CONFIRM ROUTE"
                 st.markdown(f'<a href="{full_url}" target="_blank" class="{btn_class}">{btn_text}</a>', unsafe_allow_html=True)
 
-                # UPDATED DASHBOARD HEADER WITH COUNTDOWNS
                 st.markdown(f"""
                 <div class='header-box'>
                     <h3>{d_name if d_name != 'N/A' else 'Driver'}</h3>
