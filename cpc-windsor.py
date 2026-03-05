@@ -150,27 +150,19 @@ try:
             st.markdown("### Daily Portal")
             tab_today, tab_tom = st.tabs([f"📅 Today ({today_str})", f"⏭️ Tomorrow ({tom_str})"])
 
-            # --- APPLIED FIX: Intelligent Date Parsing for Safety Messages ---
             def get_safety_msg(target_date_str):
                 msg = "Perform a thorough pre-trip inspection."
                 if not safety.empty:
                     try:
-                        # Convert the target date (e.g., '03/05/2026') to a real date object
                         target_dt = pd.to_datetime(target_date_str).date()
-                        
-                        # Convert the Google Sheet's first column into real date objects
                         safety_dates = pd.to_datetime(safety.iloc[:, 0], errors='coerce').dt.date
-                        
-                        # Find the row where the dates match perfectly
                         s_match = safety[safety_dates == target_dt]
-                        
                         if not s_match.empty:
-                            # Pull the message from the second column (Index 1)
                             val = str(s_match.iloc[0, 1]).strip()
                             if val and val.lower() != 'nan':
                                 msg = val
                     except Exception as e:
-                        pass # If there's an error, just show the default message
+                        pass
                 return msg
 
             with tab_today:
@@ -183,18 +175,35 @@ try:
                 btn_text = "✅ ROUTE CONFIRMED" if is_confirmed else "🚛 READ SAFETY & CONFIRM ROUTE"
                 st.markdown(f'<a href="{full_url}" target="_blank" class="{btn_class}">{btn_text}</a>', unsafe_allow_html=True)
 
+                # --- APPLIED FIX: Much larger fonts for the metrics ---
                 st.markdown(f"""
                 <div class='header-box'>
                     <h3>{d_name if d_name != 'N/A' else 'Driver'}</h3>
-                    <p style="margin-top:-10px; margin-bottom:15px; opacity: 0.9;">
+                    <p style="margin-top:-10px; margin-bottom:15px; font-size: 20px; opacity: 0.9;">
                         ID: <b>{user_input}</b> &nbsp;|&nbsp; Route: <b>{raw_route if raw_route != 'N/A' else 'Unassigned'}</b>
                     </p>
                     <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.3); margin-bottom: 15px;">
-                    <div style="display:flex; justify-content:space-between; text-align:center; font-size:15px; line-height:1.4;">
-                        <div style="flex:1;"><b>DL Exp</b><br>{dl_date}<br><small>{dl_badge}</small></div>
-                        <div style="flex:1; border-left: 1px solid rgba(255,255,255,0.3);"><b>DOT Exp</b><br>{dot_date}<br><small>{dot_badge}</small></div>
-                        <div style="flex:1; border-left: 1px solid rgba(255,255,255,0.3);"><b>Tenure</b><br>{hire_date}<br><small>{hire_badge}</small></div>
-                        <div style="flex:1; border-left: 1px solid rgba(255,255,255,0.3);"><b>SmartDrive</b><br>{smart_drive}<br><small style="color:#b3ffcc;">Score</small></div>
+                    <div style="display:flex; justify-content:space-between; text-align:center; line-height:1.4;">
+                        <div style="flex:1;">
+                            <span style="font-size:16px; opacity:0.9;">DL Exp</span><br>
+                            <span style="font-size:22px; font-weight:bold;">{dl_date}</span><br>
+                            <span style="font-size:18px;">{dl_badge}</span>
+                        </div>
+                        <div style="flex:1; border-left: 1px solid rgba(255,255,255,0.3);">
+                            <span style="font-size:16px; opacity:0.9;">DOT Exp</span><br>
+                            <span style="font-size:22px; font-weight:bold;">{dot_date}</span><br>
+                            <span style="font-size:18px;">{dot_badge}</span>
+                        </div>
+                        <div style="flex:1; border-left: 1px solid rgba(255,255,255,0.3);">
+                            <span style="font-size:16px; opacity:0.9;">Tenure</span><br>
+                            <span style="font-size:22px; font-weight:bold;">{hire_date}</span><br>
+                            <span style="font-size:18px;">{hire_badge}</span>
+                        </div>
+                        <div style="flex:1; border-left: 1px solid rgba(255,255,255,0.3);">
+                            <span style="font-size:16px; opacity:0.9;">SmartDrive</span><br>
+                            <span style="font-size:22px; font-weight:bold;">{smart_drive}</span><br>
+                            <span style="font-size:16px; color:#b3ffcc;">Score</span>
+                        </div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
