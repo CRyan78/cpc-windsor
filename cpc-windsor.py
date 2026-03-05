@@ -57,7 +57,7 @@ def safe_get(row, col_name, index, default=""):
     if len(row) > index and not pd.isna(row.iloc[index]): return str(row.iloc[index]).strip()
     return default
 
-# Date Math Logic
+# Date Math Logic (UPDATED COLORS FOR LIGHT BACKGROUND)
 def format_date_metric(date_str, mode="down"):
     if date_str == "N/A" or not date_str or str(date_str).lower() in ['nan', 'none']:
         return "N/A", ""
@@ -69,17 +69,17 @@ def format_date_metric(date_str, mode="down"):
         if mode == "down": # Countdown for expirations
             days = (d - now).days
             if days < 0:
-                return date_display, f"<span style='color:#ffb3b3; font-weight:bold;'>Expired</span>"
+                return date_display, f"<span style='color:#dc3545; font-weight:bold;'>Expired</span>"
             elif days <= 30:
-                return date_display, f"<span style='color:#ffe680; font-weight:bold;'>{days} days left</span>"
+                return date_display, f"<span style='color:#d35400; font-weight:bold;'>{days} days left</span>"
             else:
-                return date_display, f"<span style='color:#b3ffcc;'>{days} days left</span>"
+                return date_display, f"<span style='color:#28a745; font-weight:bold;'>{days} days left</span>"
                 
         else: # Countup for tenure
             rd = relativedelta(now, d)
             yrs = f"{rd.years}y " if rd.years > 0 else ""
             mos = f"{rd.months}m"
-            return date_display, f"<span style='color:#b3ffcc;'>{yrs}{mos}</span>"
+            return date_display, f"<span style='color:#28a745; font-weight:bold;'>{yrs}{mos}</span>"
     except Exception:
         return str(date_str), ""
 
@@ -175,38 +175,53 @@ try:
                 btn_text = "✅ ROUTE CONFIRMED" if is_confirmed else "🚛 READ SAFETY & CONFIRM ROUTE"
                 st.markdown(f'<a href="{full_url}" target="_blank" class="{btn_class}">{btn_text}</a>', unsafe_allow_html=True)
 
-                # --- APPLIED FIX: Much larger fonts for the metrics ---
+                # 1. THE MAIN PROFILE HEADER
                 st.markdown(f"""
-                <div class='header-box'>
-                    <h3>{d_name if d_name != 'N/A' else 'Driver'}</h3>
-                    <p style="margin-top:-10px; margin-bottom:15px; font-size: 20px; opacity: 0.9;">
+                <div class='header-box' style='margin-bottom: 20px;'>
+                    <h3 style='margin: 0;'>{d_name if d_name != 'N/A' else 'Driver'}</h3>
+                    <p style="margin-top: 5px; margin-bottom: 0px; font-size: 20px; opacity: 0.9;">
                         ID: <b>{user_input}</b> &nbsp;|&nbsp; Route: <b>{raw_route if raw_route != 'N/A' else 'Unassigned'}</b>
                     </p>
-                    <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.3); margin-bottom: 15px;">
-                    <div style="display:flex; justify-content:space-between; text-align:center; line-height:1.4;">
-                        <div style="flex:1;">
-                            <span style="font-size:16px; opacity:0.9;">DL Exp</span><br>
-                            <span style="font-size:22px; font-weight:bold;">{dl_date}</span><br>
-                            <span style="font-size:18px;">{dl_badge}</span>
-                        </div>
-                        <div style="flex:1; border-left: 1px solid rgba(255,255,255,0.3);">
-                            <span style="font-size:16px; opacity:0.9;">DOT Exp</span><br>
-                            <span style="font-size:22px; font-weight:bold;">{dot_date}</span><br>
-                            <span style="font-size:18px;">{dot_badge}</span>
-                        </div>
-                        <div style="flex:1; border-left: 1px solid rgba(255,255,255,0.3);">
-                            <span style="font-size:16px; opacity:0.9;">Tenure</span><br>
-                            <span style="font-size:22px; font-weight:bold;">{hire_date}</span><br>
-                            <span style="font-size:18px;">{hire_badge}</span>
-                        </div>
-                        <div style="flex:1; border-left: 1px solid rgba(255,255,255,0.3);">
-                            <span style="font-size:16px; opacity:0.9;">SmartDrive</span><br>
-                            <span style="font-size:22px; font-weight:bold;">{smart_drive}</span><br>
-                            <span style="font-size:16px; color:#b3ffcc;">Score</span>
-                        </div>
-                    </div>
                 </div>
                 """, unsafe_allow_html=True)
+
+                # 2. THE 4 DISTINCT METRIC CARDS
+                card_style = "background-color: #ffffff; border: 1px solid #dcdcdc; border-left: 6px solid #004a99; border-radius: 8px; padding: 15px; margin-bottom: 15px; box-shadow: 0px 2px 4px rgba(0,0,0,0.05);"
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown(f"""
+                    <div style='{card_style}'>
+                        <div style='font-size:14px; color:#555; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px;'>DL Expiration</div>
+                        <div style='font-size:24px; font-weight:bold; color:#1a1a1a; margin: 4px 0px;'>{dl_date}</div>
+                        <div style='font-size:18px;'>{dl_badge}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    st.markdown(f"""
+                    <div style='{card_style}'>
+                        <div style='font-size:14px; color:#555; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px;'>Tenure</div>
+                        <div style='font-size:24px; font-weight:bold; color:#1a1a1a; margin: 4px 0px;'>{hire_date}</div>
+                        <div style='font-size:18px;'>{hire_badge}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                with col2:
+                    st.markdown(f"""
+                    <div style='{card_style}'>
+                        <div style='font-size:14px; color:#555; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px;'>DOT Physical</div>
+                        <div style='font-size:24px; font-weight:bold; color:#1a1a1a; margin: 4px 0px;'>{dot_date}</div>
+                        <div style='font-size:18px;'>{dot_badge}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    st.markdown(f"""
+                    <div style='{card_style}'>
+                        <div style='font-size:14px; color:#555; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px;'>SmartDrive</div>
+                        <div style='font-size:24px; font-weight:bold; color:#1a1a1a; margin: 4px 0px;'>{smart_drive}</div>
+                        <div style='font-size:18px; color:#28a745; font-weight:bold;'>Score</div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
                 st.markdown(f"""<div class='eld-card'><div style='font-size:14px; opacity:0.8;'>ELD LOGIN</div>
                             <span class='eld-val'>3299 | {p_id if p_id != 'N/A' else 'None'} | {p_id if p_id != 'N/A' else 'None'}</span></div>""", unsafe_allow_html=True)
