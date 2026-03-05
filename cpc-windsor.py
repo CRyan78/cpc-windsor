@@ -117,7 +117,7 @@ try:
 
     elif user_input:
         if '#' in roster.columns: id_col = '#'
-        elif len(roster.columns) >= 15: id_col = roster.columns[14]
+        elif len(roster.columns) >= 15: id_col = roster.columns[14] # Column O
         else:
             st.error("Could not locate column '#' or Column O in Roster tab.")
             st.stop()
@@ -134,12 +134,11 @@ try:
             
             # PERFECT MATCHING + COLUMN FALLBACKS
             raw_dl = get_col_val(driver, ['DL Expiration Date'])
-            
-            # --- FIX APPLIED HERE: Added exact Title Case and Fallback Index 17 (Column R) ---
-            raw_dot = get_col_val(driver, ['DOT Physical Expires', 'DOT physical expires', 'DOT Expiration Date'], 17) 
-            
+            raw_dot = get_col_val(driver, ['DOT Physical Expires', 'DOT physical expires', 'DOT Expiration Date'], 17) # Column R
             raw_hire = get_col_val(driver, ['Hire Date'])
-            raw_smart_drive = get_col_val(driver, ['SMART Drive score', 'SMART Drive', 'SmartDrive', 'Score'])
+            
+            # --- FIX APPLIED HERE: Added Fallback Index 20 (Column U) ---
+            raw_smart_drive = get_col_val(driver, ['SMART Drive score', 'SMART Drive', 'SmartDrive', 'Score'], 20) 
             
             # PROCESSING THE DATE MATH
             dl_date, dl_badge = format_date_metric(raw_dl, "down")
