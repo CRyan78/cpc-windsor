@@ -51,18 +51,40 @@ def safe_get(row, col_name, index, default=""):
 
 @st.cache_data(ttl=0)
 def load_all_data():
-    base_url = "https://docs.google.com/spreadsheets/d/1o77YRNaemFMZP-5e34_VVmdlGHtO2lGhT2kN_bh6W8I/edit?gid=956807855#gid = {
-        "roster": "1261782560", "dispatch": "1123038440", "schedule": "1908585361", 
-        "links": "489255872", "safety": "1978744657",
-        "next_schedule": "1032676579", "next_dispatch": "313559236"
+    # Use the published CSV base URL
+    base_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS7yF5pvuOjzm0xdRwHrFj8ByzGZ3kh1Iqmyw8pSdegEUUVeb3qSLpd1PDuWD1cUg/pub?output=csv"
+    
+    # YOUR SPECIFIC GIDs
+    gids = {
+        "roster": "956807855",
+        "schedule": "2135671483",
+        "email": "316342570",
+        "quick": "644504571",
+        "dispatch": "1528012287",
+        "working_sched": "1659857002",
+        "working_disp": "1195417546",
+        "safety": "464410004"
     }
+    
     def get_s(gid):
         try:
+            # Added cache buster (time.time) to prevent stale data
             df = pd.read_csv(f"{base_url}&gid={gid}&cb={int(time.time())}", low_memory=False)
             df.columns = df.columns.str.strip()
             return df
-        except: return pd.DataFrame()
-    return get_s(gids["roster"]), get_s(gids["dispatch"]), get_s(gids["schedule"]), get_s(gids["links"]), get_s(gids["safety"]), get_s(gids["next_schedule"]), get_s(gids["next_dispatch"])
+        except: 
+            return pd.DataFrame()
+
+    # Unpacking into variables used in the original app logic
+    return (
+        get_s(gids["roster"]),         # roster
+        get_s(gids["dispatch"]),       # dispatch
+        get_s(gids["schedule"]),       # schedule
+        get_s(gids["quick"]),          # quick_links
+        get_s(gids["safety"]),         # safety
+        get_s(gids["working_sched"]),  # next_schedule
+        get_s(gids["working_disp"])    # next_dispatch
+    )
 
 # --- 4. MAIN APP ---
 try:
@@ -76,6 +98,7 @@ try:
         st.markdown(f'<a href="{responses_url}" target="_blank" class="btn-confirm" style="background-color: #004a99 !important;">📊 VIEW LIVE ROUTE CONFIRMATIONS</a>', unsafe_allow_html=True)
 
     elif user_input:
+        # Match Employee ID
         roster['match_id'] = roster['Employee #'].apply(clean_num)
         match = roster[roster['match_id'] == user_input]
 
@@ -84,16 +107,17 @@ try:
             d_name = safe_get(driver, 'Driver Name', 0)
             raw_route = str(driver.get('Route', ''))
             route_num = clean_num(raw_route)
+            
             today_str = datetime.now().strftime("%m/%d/%Y")
             tom_str = (datetime.now() + timedelta(days=1)).strftime("%m/%d/%Y")
 
-            # --- TABS FOR TODAY & TOMORROW ---
             st.markdown("### Daily Portal")
             tab_today, tab_tom = st.tabs([f"📅 Today ({today_str})", f"⏭️ Tomorrow ({tom_str})"])
 
             def get_safety_msg(target_date):
                 msg = "Perform a thorough pre-trip inspection."
                 if not safety.empty:
+                    # Look for date in first column, message in second
                     s_match = safety[safety.iloc[:, 0].astype(str).str.contains(target_date, na=False)]
                     if not s_match.empty: msg = s_match.iloc[0, 1]
                 return msg
@@ -102,9 +126,11 @@ try:
                 # 1. Safety & Confirm
                 st.markdown(f"<div class='safety-box'><h2>⚠️ SAFETY REMINDER</h2><p>{get_safety_msg(today_str)}</p></div>", unsafe_allow_html=True)
                 is_confirmed = st.toggle("I have submitted the Confirmation Form", key=f"conf_{user_input}")
+                
                 form_url = "https://docs.google.com/forms/d/e/1FAIpQLSfnw_F7nGy4GbJlMlCxSSGXx86b8g5J6VhXRkz_ZvABr2fcMg/viewform?"
                 params = {"entry.534103007": d_name, "entry.726947479": user_input, "entry.316322786": raw_route}
                 full_url = form_url + urllib.parse.urlencode(params)
+                
                 btn_class = "btn-done" if is_confirmed else "btn-confirm"
                 btn_text = "✅ ROUTE CONFIRMED" if is_confirmed else "🚛 READ SAFETY & CONFIRM ROUTE"
                 st.markdown(f'<a href="{full_url}" target="_blank" class="{btn_class}">{btn_text}</a>', unsafe_allow_html=True)
@@ -112,17 +138,18 @@ try:
                 # 2. Header & Profile
                 st.markdown(f"<div class='header-box'><h3>{d_name}</h3>ID: <b>{user_input}</b> | Route: <b>{raw_route}</b></div>", unsafe_allow_html=True)
                 
-                # ELD Login (Alphanumeric Fix)
+                # ELD Login
                 p_id = clean_id_alphanumeric(safe_get(driver, 'PeopleNet ID', 12))
                 st.markdown(f"""<div class='eld-card'><div style='font-size:14px; opacity:0.8;'>ELD LOGIN</div>
                             <span class='eld-val'>3299 | {p_id} | {p_id}</span></div>""", unsafe_allow_html=True)
 
-                # 3. Today's Schedule + Buttons
+                # 3. Today's Dispatch Notes
                 dispatch['route_match'] = dispatch.iloc[:, 0].apply(clean_num)
                 today_notes = dispatch[dispatch['route_match'] == route_num]
                 if not today_notes.empty:
                     st.markdown(f"<div style='border: 2px solid #d35400; padding: 15px; border-radius: 12px; background-color: #fffcf9; margin-bottom: 15px;'><b>Today's Notes:</b><br>{today_notes.iloc[0].get('Comments', 'None')}</div>", unsafe_allow_html=True)
                 
+                # 4. Today's Schedule Stops
                 schedule['route_match'] = schedule.iloc[:, 0].apply(clean_num)
                 stops = schedule[schedule['route_match'] == route_num]
                 for _, stop in stops.iterrows():
@@ -146,15 +173,17 @@ try:
                 # 1. Tomorrow's Safety
                 st.markdown(f"<div class='safety-box' style='border-color: #004a99 !important; background-color: #f0f7ff !important;'><h2>⏭️ TOMORROW'S SAFETY</h2><p>{get_safety_msg(tom_str)}</p></div>", unsafe_allow_html=True)
 
-                # 2. Tomorrow's Schedule + Buttons
+                # 2. Tomorrow's Notes
                 next_dispatch['route_match'] = next_dispatch.iloc[:, 0].apply(clean_num)
                 tom_notes = next_dispatch[next_dispatch['route_match'] == route_num]
                 if not tom_notes.empty:
                     st.markdown(f"<div style='border: 2px solid #004a99; padding: 15px; border-radius: 12px; background-color: #f0f7ff; margin-bottom: 15px;'><b>Tomorrow's Notes:</b><br>{tom_notes.iloc[0].get('Comments', 'None')}</div>", unsafe_allow_html=True)
                 
+                # 3. Tomorrow's Schedule
                 next_schedule['route_match'] = next_schedule.iloc[:, 0].apply(clean_num)
                 t_stops = next_schedule[next_schedule['route_match'] == route_num]
-                if t_stops.empty: st.info("Tomorrow's schedule not yet posted.")
+                if t_stops.empty: 
+                    st.info("Tomorrow's schedule not yet posted.")
                 for _, stop in t_stops.iterrows():
                     sid_t = clean_num(safe_get(stop, 'Store ID', 4))
                     sid_t5 = sid_t.zfill(5)
@@ -172,14 +201,21 @@ try:
                         st.markdown(f"<a href='{s_map_t}' class='btn-blue'>🗺️ Store Map</a>", unsafe_allow_html=True)
                         st.markdown(f"<a href='{iss_url_t}' class='btn-red'>🚨 Report Issue</a>", unsafe_allow_html=True)
 
-            # 4. QUICK LINKS
+            # 4. QUICK LINKS (from "Quick" tab)
             st.divider()
-            for _, link in quick_links.iterrows():
-                n, v = str(link.get('Name')), str(link.get('Phone Number or URL'))
-                if "http" in v.lower():
-                    st.markdown(f"<a href='{v}' class='btn-blue'>{n}</a>", unsafe_allow_html=True)
-                else:
-                    st.markdown(f"<a href='{make_tel_link(v)}' class='btn-green'>📞 Call {n}</a>", unsafe_allow_html=True)
+            if not quick_links.empty:
+                for _, link in quick_links.iterrows():
+                    n, v = str(link.get('Name')), str(link.get('Phone Number or URL'))
+                    if "http" in v.lower():
+                        st.markdown(f"<a href='{v}' class='btn-blue'>{n}</a>", unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"<a href='{make_tel_link(v)}' class='btn-green'>📞 Call {n}</a>", unsafe_allow_html=True)
 
-        else: st.error("ID not found.")
-except Exception as e: st.error(f"Error: {e}")
+        else: 
+            st.error("ID not found.")
+
+except Exception as e: 
+    st.error(f"Critical Error: {e}")
+
+# To debug data loading, uncomment the line below:
+# st.write({"Roster": len(roster), "Safety": len(safety), "Quick": len(quick_links)})
