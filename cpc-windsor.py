@@ -4,6 +4,7 @@ import re
 import time
 import urllib.parse
 from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 from streamlit_autorefresh import st_autorefresh 
 
 # --- 1. CONFIG & REFRESH ---
@@ -56,6 +57,34 @@ def safe_get(row, col_name, index, default=""):
     if len(row) > index and not pd.isna(row.iloc[index]): return str(row.iloc[index]).strip()
     return default
 
+# NEW: Date Math Logic
+def format_date_metric(date_str, mode="down"):
+    if date_str == "N/A" or not date_str or str(date_str).lower() in ['nan', 'none']:
+        return "N/A", ""
+    try:
+        # Parse the date from the Google Sheet string
+        d = pd.to_datetime(date_str)
+        now = pd.Timestamp.now()
+        date_display = d.strftime('%m/%d/%y')
+        
+        if mode == "down": # Countdown for expirations
+            days = (d - now).days
+            if days < 0:
+                return date_display, f"<span style='color:#ffb3b3; font-weight:bold;'>Expired</span>"
+            elif days <= 30:
+                return date_display, f"<span style='color:#ffe680; font-weight:bold;'>{days} days left</span>"
+            else:
+                return date_display, f"<span style='color:#b3ffcc;'>{days} days left</span>"
+                
+        else: # Countup for tenure
+            rd = relativedelta(now, d)
+            yrs = f"{rd.years}y " if rd.years > 0 else ""
+            mos = f"{rd.months}m"
+            return date_display, f"<span style='color:#b3ffcc;'>{yrs}{mos}</span>"
+    except Exception:
+        # If it fails to parse (e.g. someone typed "TBD"), just return the raw text safely
+        return str(date_str), ""
+
 @st.cache_data(ttl=0)
 def load_all_data():
     base_url = "https://docs.google.com/spreadsheets/d/1o77YRNaemFMZP-5e34_VVmdlGHtO2lGhT2kN_bh6W8I/export?format=csv"
@@ -101,22 +130,23 @@ try:
         if not match.empty:
             driver = match.iloc[0]
             
-            # 1. HARDENED DRIVER INFO
             d_name = get_col_val(driver, ['Driver Name', 'Driver', 'Name', 'Employee Name'], 0)
             raw_route = get_col_val(driver, ['Route', 'Route #', 'Current Route'], 1) 
             p_id = clean_id_alphanumeric(get_col_val(driver, ['PeopleNet ID', 'PeopleNet', 'ELD'], 12))
             
-            # 2. NEW: COMPLIANCE & PERFORMANCE METRICS
-            cdl_exp = get_col_val(driver, ['CDL Expiration', 'CDL Exp', 'CDL Date', 'License Exp'])
-            dot_exp = get_col_val(driver, ['DOT Expiration', 'DOT Exp', 'DOT Date', 'DOT'])
-            tenure = get_col_val(driver, ['Tenure', 'Hire Date', 'Years', 'Seniority'])
-            smart_drive = get_col_val(driver, ['SMART Drive score', 'SMART Drive', 'SmartDrive', 'Score'])
+            # PULLING YOUR SPECIFIC COLUMNS
+            raw_dl = get_col_val(driver, ['DL Expiration Date'])
+            raw_dot = get_col_val(driver, ['DOT physical expires'])
+            raw_hire = get_col_val(driver, ['Hire Date'])
+            raw_smart_drive = get_col_val(driver, ['SMART Drive score', 'SMART Drive', 'SmartDrive', 'Score'])
             
-            # Clean up missing metrics
-            cdl_exp = cdl_exp if cdl_exp.lower() != 'nan' else 'N/A'
-            dot_exp = dot_exp if dot_exp.lower() != 'nan' else 'N/A'
-            tenure = tenure if tenure.lower() != 'nan' else 'N/A'
-            smart_drive = smart_drive if smart_drive.lower() != 'nan' else 'N/A'
+            # PROCESSING THE DATE MATH
+            dl_date, dl_badge = format_date_metric(raw_dl, "down")
+            dot_date, dot_badge = format_date_metric(raw_dot, "down")
+            hire_date, hire_badge = format_date_metric(raw_hire, "up")
+            
+            # Clean up missing SD metric
+            smart_drive = raw_smart_drive if str(raw_smart_drive).lower() != 'nan' else 'N/A'
 
             route_num = clean_num(raw_route)
             today_str = datetime.now().strftime("%m/%d/%Y")
@@ -142,7 +172,7 @@ try:
                 btn_text = "✅ ROUTE CONFIRMED" if is_confirmed else "🚛 READ SAFETY & CONFIRM ROUTE"
                 st.markdown(f'<a href="{full_url}" target="_blank" class="{btn_class}">{btn_text}</a>', unsafe_allow_html=True)
 
-                # NEW DASHBOARD HEADER WITH METRICS
+                # UPDATED DASHBOARD HEADER WITH COUNTDOWNS
                 st.markdown(f"""
                 <div class='header-box'>
                     <h3>{d_name if d_name != 'N/A' else 'Driver'}</h3>
@@ -151,10 +181,10 @@ try:
                     </p>
                     <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.3); margin-bottom: 15px;">
                     <div style="display:flex; justify-content:space-between; text-align:center; font-size:15px; line-height:1.4;">
-                        <div style="flex:1;"><b>CDL Exp</b><br>{cdl_exp}</div>
-                        <div style="flex:1; border-left: 1px solid rgba(255,255,255,0.3);"><b>DOT Exp</b><br>{dot_exp}</div>
-                        <div style="flex:1; border-left: 1px solid rgba(255,255,255,0.3);"><b>Tenure</b><br>{tenure}</div>
-                        <div style="flex:1; border-left: 1px solid rgba(255,255,255,0.3);"><b>SmartDrive</b><br>{smart_drive}</div>
+                        <div style="flex:1;"><b>DL Exp</b><br>{dl_date}<br><small>{dl_badge}</small></div>
+                        <div style="flex:1; border-left: 1px solid rgba(255,255,255,0.3);"><b>DOT Exp</b><br>{dot_date}<br><small>{dot_badge}</small></div>
+                        <div style="flex:1; border-left: 1px solid rgba(255,255,255,0.3);"><b>Tenure</b><br>{hire_date}<br><small>{hire_badge}</small></div>
+                        <div style="flex:1; border-left: 1px solid rgba(255,255,255,0.3);"><b>SmartDrive</b><br>{smart_drive}<br><small style="color:#b3ffcc;">Score</small></div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
