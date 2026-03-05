@@ -132,9 +132,12 @@ try:
             raw_route = get_col_val(driver, ['Route', 'Route #', 'Current Route'], 1) 
             p_id = clean_id_alphanumeric(get_col_val(driver, ['PeopleNet ID', 'PeopleNet', 'ELD'], 12))
             
-            # EXACT COLUMN MATCHING
+            # PERFECT MATCHING + COLUMN FALLBACKS
             raw_dl = get_col_val(driver, ['DL Expiration Date'])
-            raw_dot = get_col_val(driver, ['DOT Expiration Date', 'DOT physical expires'])
+            
+            # --- FIX APPLIED HERE: Added exact Title Case and Fallback Index 17 (Column R) ---
+            raw_dot = get_col_val(driver, ['DOT Physical Expires', 'DOT physical expires', 'DOT Expiration Date'], 17) 
+            
             raw_hire = get_col_val(driver, ['Hire Date'])
             raw_smart_drive = get_col_val(driver, ['SMART Drive score', 'SMART Drive', 'SmartDrive', 'Score'])
             
@@ -143,7 +146,6 @@ try:
             dot_date, dot_badge = format_date_metric(raw_dot, "down")
             hire_date, hire_badge = format_date_metric(raw_hire, "up")
             
-            # Clean up missing SD metric
             smart_drive = raw_smart_drive if str(raw_smart_drive).lower() != 'nan' else 'N/A'
 
             route_num = clean_num(raw_route)
